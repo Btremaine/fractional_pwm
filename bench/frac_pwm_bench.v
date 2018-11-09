@@ -55,12 +55,12 @@ initial begin
 #0  rstn = 0;
 #20 sys_clk = 0;
 #20 No = 4000;
-#20 N = 2000;
+#20 N = 1000;
 #50 rstn = 1;
 //
 #50 mf = 1;
 
-#300_000 $finish ;
+#400_000 $finish ;
 end
 
 endmodule

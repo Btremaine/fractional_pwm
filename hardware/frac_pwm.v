@@ -40,7 +40,7 @@ localparam MSB = WIDTH-1;
 localparam fsze = 3;				// # of fractional pwm bits
 
 reg [WIDTH-1:0] ncoarse;
-reg [WIDTH-1:0] M;
+reg [WIDTH-1:0] Mreg;
 reg [fsze-1:0] mcnt;
 reg [WIDTH-1:0] period_cnt;
 reg signed [WIDTH-1:0] mfs4;
@@ -56,8 +56,8 @@ initial begin
 	end
 	
 // assign
-	assign q_out = (period_cnt > M) ? 1'b1 : 1'b0;
-	assign count = M;
+	assign q_out = (Mreg!=0) ? 1'b1 : 1'b0;
+	assign count = Mreg;
 	assign rst = ~sync_rst_n;
 	assign nfine = mf[fsze-1:0] ;
 
@@ -84,10 +84,10 @@ end
 // ---------------------------------------------------
 	
 	always @(negedge sys_clk, posedge rst) begin		// mcnt register
-		if(rst)
+		if(rst)                                         // generates M count windows {M-1:0]
 			mcnt <= 0;
 		else begin
-				if(M==0) begin
+				if(period_cnt==0) begin
 					if(mcnt!=0)
 						mcnt <= mcnt-1;
 					else
@@ -101,19 +101,21 @@ end
 	
 	always @(negedge sys_clk, posedge rst) begin		// M register
 		if (rst)                                        // counts N or N+1 depending on
-			M <= N-1;                                   // on mcnt < nfine
+			Mreg <= N-1;                                // on mcnt < nfine
 		else begin
-				if(M !=0) 
-					M <= M - 1'b1;
-				else if( mcnt < nfine)
+				if(Mreg !=0) 
+					Mreg <= Mreg - 1'b1;
+				else if(period_cnt==0) begin
+				    if( mcnt < nfine)
 				    begin
-					M <= ncoarse + 1'b1;
+					Mreg <= ncoarse + 1'b1;
 					load <= ncoarse + 1'b1;
 					end
 				else begin
-					M <= ncoarse; 
+					Mreg <= ncoarse; 
 					load <= ncoarse;
 					end
+				end
 		end			
 	end
 
