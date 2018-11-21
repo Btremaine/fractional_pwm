@@ -12,9 +12,9 @@
 // Tool versions: 
 // Description:    fractional pwm
 //                 Generate clock with constant period sys_clk/No. 
-//			       Generate PWM signal high > N+1 counts for m-cycles and 
+//			          Generate PWM signal high > N+1 counts for m-cycles and 
 //                 high > N counts for M-m cycles. Average PWM count is N + m/M
-//		           In this code Mbar is parameterized using fsze
+//		             In this code Mbar is parameterized using fsze
 //
 //                 Output q is high for period_cnt > Ni otherwise q is low.
 // Dependencies: 
@@ -29,8 +29,8 @@ module frac_pwm #(parameter WIDTH = 17)(
 	input sys_clk,
 	input sync_rst_n,
 	input [WIDTH-1:0] No,           // period divider
-	input [WIDTH-1:0] N,			// integer pwm
-	input signed [WIDTH-1:0] mf,	// fractional pwm ...yyyyy.xxx
+	input [WIDTH-1:0] N,			     // integer pwm
+	input signed [WIDTH-1:0] mf,	  // fractional pwm ...yyyyy.xxx
 	// outputs
 	output [WIDTH-1:0] count,       // ?? debug ??
 	output q_out                    // pwm output
@@ -44,7 +44,6 @@ reg [WIDTH-1:0] Mreg;
 reg [fsze-1:0] mcnt;
 reg [WIDTH-1:0] period_cnt;
 reg signed [WIDTH-1:0] mfs4;
-
 reg [WIDTH-1:0] load;
 
 wire rst;
@@ -84,7 +83,7 @@ end
 // ---------------------------------------------------
 	
 	always @(negedge sys_clk, posedge rst) begin		// mcnt register
-		if(rst)                                         // generates M count windows {M-1:0]
+		if(rst)                                      // generates M count windows {M-1:0]
 			mcnt <= 0;
 		else begin
 				if(period_cnt==0) begin
@@ -100,8 +99,8 @@ end
 // ----------------------------------------------------
 	
 	always @(negedge sys_clk, posedge rst) begin		// M register
-		if (rst)                                        // counts N or N+1 depending on
-			Mreg <= N-1;                                // on mcnt < nfine
+		if (rst)                                     // counts N or N+1 depending on
+			Mreg <= N-1;                              // on mcnt < nfine
 		else begin
 				if(Mreg !=0) 
 					Mreg <= Mreg - 1'b1;

@@ -20,21 +20,20 @@
 // Additional Comments: 
 //
 //////////////////////////////////////////////////////////////////////////////////
-module Top_VsyncFilter(
+module Top_Frac_pwm(
 			// inputs
-			input CLK1,//----------------------- system clock 100Mc (xtal)
-			input RESET_N,//-------------------- fpga reset from IBUF
-			input ALE, //----------------------- ALE not used
-			input [2:0] BRD_ID,//--------------- Board ID bits [2:0]
-			input vsyncIn,//-------------------  TP12 : Vsync input ~120Hz
+			input CLK1,   //--------------------- system clock 100Mc (xtal)
+			input RESET_N,//--------------------- fpga reset from IBUF
+			input ALE,    //--------------------- ALE not used
+			input [2:0] BRD_ID,//---------------- Board ID bits [2:0]
+			input TP29,  //---------------------- TP29 : fgIn input ~360Hz
 			// outputs,               
-			output D1,//------------------------- LED D1 tp
 			output D2,//------------------------- LED D2 tp
-			output TP7,//------------------------ TP7  : Fref    ~1080Hz
-			output VsyncF,//--------------------- TP13 : VsyncF	  ~60Hz
-			output Vsync2x, //------------------- TP14 : Vsync2x	 ~120Hz
-			output TP15,//----------------------- TP15 : vsyncSrc  ~60Hz
-			output TP6//------------------------- TP6  : 
+			output D3,//------------------------- LED D3 tp
+			output D4,//------------------------- LED D4 TP
+			output TP31,  //--------------------- TP31 : fgFb	  ~60Hz
+			output TP32,   //-------------------- TP32 : pwm
+			output TP33  //---------------------- TP33 : Fref    ~60Hz
     );
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 `ifdef BENCH        // defined in defines.v for testbench simulation
@@ -56,105 +55,143 @@ initial
  //------------ DCM for implementation, not in testbench --------------
 `else
 dcm2 instance_name (
-   .CLKIN_IN   (CLK1),           // 100MHz xtal
+   .CLKIN_IN   (CLK1),        // 100MHz xtal
    .RST_IN     (~RESET_N), 
-   .CLKDV_OUT  (sp_clk),         // 50MHz output
+   .CLKDV_OUT  (sp_clk),      // 50MHz output
    .CLKIN_IBUFG_OUT (), 
-   .CLK0_OUT   (),    		   	// 100Mhz output
+   .CLK0_OUT   (),    		  // 100Mhz output
    .LOCKED_OUT ()
  ); 
 
 `endif 
 // --------------------------------------------------------------------
 
-parameter M0 = 17'h10C8E; // 68750, nominal divider count,727.2Hz, (fosc/Fref)
 parameter KI = 3'h6;
 parameter KP = 3'h1;
 parameter K0 = 3'h3;
-parameter DLIM = 22'h04FFFF; // 22'h001770; // 22'h07FFFF; // integrator limit (signed)
+parameter DLIM = 22'h04FFFF; // integrator limit (signed)
 parameter WIN= 10'h1FF;		  // window width
 parameter WIDTH=17;
 parameter WIDTH_ERR=22;
-parameter N0 = 1237500;       // 21'h12E1FC Vsync period, 40.4Hz
+parameter Nref = 833333;     // 20'hCB735 Fref period, 60.0Hz
+parameter N0 = 2000;         // 12'h7D0 pwm period 25kHz
+parameter M0 =  N0 >>1;
 
 
-reg [16:0] m0;
-reg [2:0]  ki;
-reg [2:0]  kp;
-reg [2:0]  k0;
-reg [21:0] dlim;
+reg [16:0] m0 =  M0;
+reg [5:0]  ki =  KI;
+reg [5:0]  kp =  KP;
+reg [5:0]  k0 =  K0;
+reg [WIDTH-1:0] no = N0;
+reg [21:0] dlim = DLIM;
 reg [9:0]  win_width;
-reg [WIDTH_ERR-2:0] win_delay; // unsigned
-reg [20:0] vsyncCnt;
-reg [7:0] vsyncCount;
-reg [4:0] vsyncSrcCnt;			// pulse display width
+reg [WIDTH_ERR-2:0] win_delay;// unsigned
+reg [20:0] M;						// Fref counter
 
 wire [WIDTH-1:0] Me;
 wire sync_rst_n;
-wire rst;
 wire [WIDTH_ERR-1:0] Err;  // signed error
 wire Venable;
 wire sample;
-wire vsyncClk;
+wire fgFb;
+wire pwm;
+
 
 // instantiate rst_gen
    rst_gen rst_gen1(
 		.reset_n    	(RESET_N),	    // reset from IBUFF
-		.clk        	(sp_clk), 		// master clock source
-		.sync_rst_n     (sync_rst_n) 	// synchronized reset
+		.clk        	(sp_clk), 		 // master clock source
+		.sync_rst_n    (sync_rst_n) 	 // synchronized reset
 		);
+		
+// instaniate fgFb counter (div-by-6)	
+	down_cnt_sync #(.WIDTH(4)) down_cnt_sync1(
+	   // inputs
+		.sys_clk    (sp_clk),			// master clock source
+		.clk_in		(fgIn),				// input source clock
+		.sync_rst_n (sync_rst_n),		// synchronized reset
+		.N			   (4'h6),				// divide ratio
+		// outputs
+		.count		(),					// reg count value
+		.q_out		(fgFb)			   // output
+       );	
 
-// instantiate (div-by N) counter, fractional pwm
+// instantiate fractional pwm
 	frac_pwm #(.WIDTH(17)) frac_pwm1(
 	// inputs
-	.sys_clk		(sp_clk),		// system master clock
+	.sys_clk		   (sp_clk),		// system master clock
 	.sync_rst_n		(sync_rst_n),
-	.No             (No),           // pwm period divider
-	.N				(m0),		    // integer pwm
-	.mf				(Me),			// fractional divide ...yyyyy.xxxx
+	.No            (no),          // pwm period divider
+	.N				   (m0),		      // integer pwm
+	.mf				(Me),			   // fractional divide ...yyyyy.xxxx
 	// outputs
 	.count			(),
-	.q_out			(Fref)			// pwm output
+	.q_out			(pwm)			   // pwm output
 	);
-		 
-
-// handle Vsync enable here
-assign vsyncSrc = (BRD_ID[2]==1'b1) ? vsyncClk: vsyncIn;	   // select vsync source
-assign D1 = sample;
-assign D2 = Venable;
-assign TP15 = (vsyncSrcCnt!=0) ? 1'b1:1'b0;
-assign TP7 = Fref;
-assign TP6 = pd_error;
-assign rst = ~sync_rst_n;
-
-
-assign vsyncClk = ((vsyncCnt ==0) && (vsyncCount!=0)) ? 1'b1 : 1'b0;  // 20ns wide pulse
-   
-	always @ (posedge sp_clk) begin
-		m0 <= M0;
-	end
 	
-	// ================================================
-	// stretch Vsync sources for display
-	always @ (posedge sp_clk, posedge vsyncSrc) begin
-		if(vsyncSrc)
-			vsyncSrcCnt <= 24;		// 500ns wide pulse
-		else if(vsyncSrcCnt !=0)
-			vsyncSrcCnt <= vsyncSrcCnt - 1'b1;	
-	end	
-	
-	// ================================================
-	// Debug code
-	// code to generate vsyncClk for debug (40Hz on dev board)
-	always @ (posedge sp_clk, posedge rst) begin
-		if(rst)
-			vsyncCnt <= N0 - 1;
-		else begin
-			if(vsyncCnt != 0)
-				vsyncCnt <= vsyncCnt -1;
+/// instantiate phase detector
+ phase_det phase_det1(
+    // inputs
+	.clk        		(sp_clk),		// master clock source
+	.sync_rst_n 		(sync_rst_n),	// synchronized reset
+	.ref_phase  		(Fref),		   // input raw vsync
+	.fb_phase   		(fgFb),		   // input feedback phase
+	.delay_len  		(win_delay),	// user reg, window delay count
+	.width_win  		(win_width),	// user reg, window width count
+    // outputs
+	.sample_out       (sample),
+	.err        		(Err),          // error count
+	.pd_error   		(pd_error)      // (RST signal, lost vsync)
+    );
+
+// instantiate compensation
+ compensate compensate1(
+     // inputs
+    .sys_clk             (sp_clk),
+    .rst                 (~sync_rst_n),
+    .err                 (Err),
+    .M0                  (m0),				// user reg, default divider
+    .dlim                (dlim),				// user reg
+    .ki                  (ki),				// user reg
+    .kp                  (kp),            // user reg
+    .k0                  (k0),				// user reg
+    .enable		          (Venable),
+    .process		       (sample),
+     // outputs
+    .uk			          (Me)
+     );	 
+
+// handle enable here:
+//    D3|D2|D4
+//     2 1 0
+// BRD 1 0 x enabled & closed loop
+//     1 1 x enabled & open loop
+//     0 x x disabled
+
+assign D3 = (BRD_ID[2]==1'b1)? 1: 0;
+assign D2 = (BRD_ID[1]==1'b1)? 1: 0;
+assign D4 = (BRD_ID[0]==1'b1)? 1: 0;
+assign Venable = (D3 & ~D2)? 1: 0;   // set Venable
+
+assign fgIn = TP29;
+assign TP31 = fgFb;
+assign TP32 = (D3) ? pwm: 1'b0;      // set pwm
+assign TP33 = Fref; 
+
+assign Fref = (M < (Nref>>1) ) ? 1'b1: 1'b0;   // generate Fref
+
+	// Fref counter (generates 60Hz ref clock
+	always @(posedge sp_clk) begin
+		if(~sync_rst_n) begin
+		   M <= Nref;
+		end else begin
+		   if (M<=0)
+			  M <= Nref;
 			else
-				vsyncCnt <= N0 - 40;  // s/b -1 (-2 works)
+			  M <= M -1'b1;
 		end
 	end
+
+    // --------------------------------------
 			
 endmodule

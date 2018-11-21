@@ -1,0 +1,8 @@
+verilog work "hardware/sync_1ck.v"
+verilog work "hardware/rst_gen.v"
+verilog work "hardware/phase_det.v"
+verilog work "hardware/frac_pwm.v"
+verilog work "hardware/down_cnt_sync.v"
+verilog work "hardware/compensate.v"
+verilog work "dcm2.v"
+verilog work "hardware/Top_Frac_pwm.v"

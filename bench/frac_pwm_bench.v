@@ -2,7 +2,7 @@
 // Description: This is the top level stimulus module for testing 
 // the module frac_pwm.v
 // Brian Tremaine 
-// Nov 6, 2018
+// Nov 21, 2018
 //
 // target hardware:
 // Dev board:
