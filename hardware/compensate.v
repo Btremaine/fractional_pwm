@@ -21,16 +21,15 @@
 // Additional Comments: 
 //
 //////////////////////////////////////////////////////////////////////////////////
-module compensate #(parameter WIDTH= 17, WIDTH_ERR=22) (
+module compensate #(parameter WIDTH= 17, WIDTH_ERR=22, fsze = 6) (
 	// input
 	input sys_clk,								// system clock
 	input rst,									// active high reset
 	input signed [WIDTH_ERR-1:0] err,	// signed error
-	input [WIDTH-1:0] M0,
 	input [WIDTH_ERR-1:0] dlim,
-	input	[5:0] ki,
-	input [5:0] kp,
-	input	[5:0] k0,
+	input [fsze-1:0] ki,
+	input [fsze-1:0] kp,
+	input [fsze-1:0] k0,
 	input enable,
 	input process,
 	// outputs
@@ -82,7 +81,7 @@ assign uk = result2;
 				counter <= counter-1;		
 			if(!enable) 
 			begin
-				result2 <= M0 ;	// default count
+				result2 <=  4'h0 ;	// default count
 				Yi <= 0;
 				R1 <= 0;
 				counter <= 0;
@@ -107,7 +106,7 @@ assign uk = result2;
                4'h4: Yi <= Ys >>>ki;		// temporary re-use Yi						
 					4'h3: R1 <= R1 + Yi;			// preserve Ys
 					4'h2: result1 <= R1>>>k0; 
-					4'h1: result2 <= $signed(result1) + $signed(M0);
+					4'h1: result2 <= $signed(result1) ;
 					default: ;    // don't do anything
 				endcase  
 			end

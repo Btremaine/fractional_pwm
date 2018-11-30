@@ -12,10 +12,10 @@
 // Tool versions: 
 // Description:    fractional pwm
 //                 Generate clock with constant period sys_clk/No. 
-//			          Generate PWM signal high > N+1 counts for m-cycles and 
-//                 high > N counts for M-m cycles. Average PWM count is N + m/M
+//			          Generate PWM signal high > Nf+1 counts for m-cycles and 
+//                 high > Nf counts for M-m cycles. Average PWM count is Nf + m/M
 //		             In this code Mbar is parameterized using fsze
-//
+//                 Count is bounded by [0 No] (0-100% duty cycle)
 //                 Output q is high for period_cnt > Ni otherwise q is low.
 // Dependencies: 
 //
@@ -24,27 +24,26 @@
 // Additional Comments: 
 //
 //////////////////////////////////////////////////////////////////////////////////
-module frac_pwm #(parameter WIDTH = 17)(
+module frac_pwm #(parameter WIDTH = 17, parameter fsze = 6) (
 	// inputs
 	input sys_clk,
 	input sync_rst_n,
-	input [WIDTH-1:0] No,           // period divider
-	input [WIDTH-1:0] N,			     // integer pwm
-	input signed [WIDTH-1:0] mf,	  // fractional pwm ...yyyyy.xxx
+	input [WIDTH-1:0] No,			// period divider	
+	input [WIDTH-1:0] N,			// default center pwm value
+	input signed [WIDTH-1:0] mf,	// fractional pwm ...yyyyy.xxx
 	// outputs
-	output [WIDTH-1:0] count,       // ?? debug ??
-	output q_out                    // pwm output
+	output [WIDTH-1:0] count, 	// ?? debug ??
+	output q_out					// pwm output
     );
 
 localparam MSB = WIDTH-1;
-localparam fsze = 3;				// # of fractional pwm bits
 
 reg [WIDTH-1:0] ncoarse;
 reg [WIDTH-1:0] Mreg;
 reg [fsze-1:0] mcnt;
 reg [WIDTH-1:0] period_cnt;
 reg signed [WIDTH-1:0] mfs4;
-reg [WIDTH-1:0] load;
+reg signed [WIDTH-1:0] R1;
 
 wire rst;
 wire [fsze-1:0] nfine;
@@ -60,10 +59,16 @@ initial begin
 	assign rst = ~sync_rst_n;
 	assign nfine = mf[fsze-1:0] ;
 
-////// combinatorial /////
-always @ (*) begin
-      mfs4 <= mf>>>fsze;
-      ncoarse <= (mf[MSB]) ? (N - (~mfs4+1)) : (N + mfs4);
+////// limit ncoarse to [0 No]
+always @(posedge sys_clk) begin
+     mfs4 <= mf >>> fsze;
+end
+always @ (posedge sys_clk) begin
+     R1 <= (mf[MSB]) ? (N - (~mfs4+1)) : (N + mfs4);
+end
+always @ (posedge sys_clk) begin
+	ncoarse <= (R1[MSB]) ? 0 : 
+				 (R1 > No) ? No: R1;
 end
 
 // --------------------------------------------------
@@ -108,11 +113,9 @@ end
 				    if( mcnt < nfine)
 				    begin
 					Mreg <= ncoarse + 1'b1;
-					load <= ncoarse + 1'b1;
 					end
 				else begin
 					Mreg <= ncoarse; 
-					load <= ncoarse;
 					end
 				end
 		end			

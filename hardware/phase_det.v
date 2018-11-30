@@ -35,19 +35,19 @@ module phase_det #(parameter WIDTH_TMR=21, WIDTH_ERR=22) (
 
 
 // Parameters for PD modulo PI conversion
-// 60Hz using 74.250MHz clock
+// 60Hz using 75MHz clock
 // parameter N0 = 618750;
 // parameter x2N0 = 1237500;
 // 40.4Hz using 50MHz clock
-parameter N0 = 22'h098968;    //  625000
-parameter x2N0 = 22'h1312D0;  // 1250000
+parameter N0 = 22'h65B9A;     //  416666
+// derived parameters
+parameter x2N0 = N0 <<1 ;     //  833332
 
 wire W;
 wire clr_pd;
 wire clr_RST;
 wire clr_Q;
 wire set_Q;
-
 
 reg pu;
 reg pd;
@@ -88,7 +88,11 @@ assign set_RST = (~RST & (Win_cntr == 1) & (Q==0) );
 assign clr_ttimer = (~MIP & (fb_posedge || ref_posedge )) || set_RST;
 assign clr_Q = (Win_cntr == 0)? 1'b1 : 1'b0;
 assign set_Q = ref_phase_sync && ~ref_phase_dly;
-assign pd_error = RST;
+
+// 11/27/18 java BLDC
+// assign pd_error = RST;
+assign pd_error = MIP;
+
 assign clrMIP = ((ref_posedge || fb_posedge) & MIP) || set_RST;
 assign setMIP = ((ref_posedge & ~pd) || (fb_posedge & ~pu)) & ~MIP;
 

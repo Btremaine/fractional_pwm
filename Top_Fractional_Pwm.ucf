@@ -32,12 +32,21 @@ NET "BRD_ID[2]" PULLUP;
 NET "BRD_ID[1]" PULLUP;
 NET "BRD_ID[0]" PULLUP;
 
-# PlanAhead Generated IO constraints 
 
 NET "D3" IOSTANDARD = LVCMOS33;
 NET "D4" IOSTANDARD = LVCMOS33;
 
-# PlanAhead Generated physical constraints 
 
 NET "D3" LOC = P50;
 NET "D4" LOC = P68;
+
+
+
+NET "TP28" LOC = P142;
+
+
+NET "TP28" IOSTANDARD = LVCMOS33;
+
+# PlanAhead Generated IO constraints 
+
+NET "TP31" PULLUP;
